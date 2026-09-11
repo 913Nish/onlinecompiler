@@ -1,10 +1,122 @@
-{
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "cors": "latest",
-    "express": "latest"
-  }
+import express from "express";
+import cors from "cors";
+
+const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+
+const PISTON_URL = "https://emkc.org/api/v2/piston";
+
+const languageMap = {
+  c: "c",
+  cpp: "c++",
+  cplusplus: "c++",
+  python: "python",
+  py: "python",
+  javascript: "javascript",
+  js: "javascript",
+  java: "java",
+};
+
+async function getRuntime(language) {
+  const pistonLanguage = languageMap[language] || language;
+  const response = await fetch(`${PISTON_URL}/runtimes`);
+  const runtimes = await response.json();
+
+  return runtimes.find((runtime) => {
+    return (
+      runtime.language === pistonLanguage ||
+      runtime.aliases?.includes(pistonLanguage)
+    );
+  });
 }
+
+app.get("/", (req, res) => {
+  res.send("Online Compiler Backend is running");
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true });
+});
+
+app.post("/api/execute", async (req, res) => {
+  try {
+    const { code, language, stdin } = req.body;
+
+    if (!code || !language) {
+      return res.status(400).json({
+        stdout: "",
+        stderr: "Missing code or language",
+        exitCode: 1,
+        executionTimeMs: 0,
+        memoryMb: 0,
+        engineUsed: "piston",
+      });
+    }
+
+    const runtime = await getRuntime(language);
+
+    if (!runtime) {
+      return res.status(400).json({
+        stdout: "",
+        stderr: `Language not supported: ${language}`,
+        exitCode: 1,
+        executionTimeMs: 0,
+        memoryMb: 0,
+        engineUsed: "piston",
+      });
+    }
+
+    const response = await fetch(`${PISTON_URL}/execute`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        language: runtime.language,
+        version: runtime.version,
+        files: [
+          {
+            content: code,
+          },
+        ],
+        stdin: stdin || "",
+      }),
+    });
+
+    const result = await response.json();
+
+    res.json({
+      stdout: result.run?.stdout || "",
+      stderr: result.run?.stderr || result.compile?.stderr || "",
+      exitCode: result.run?.code ?? result.compile?.code ?? 0,
+      executionTimeMs: 0,
+      memoryMb: 0,
+      engineUsed: "piston",
+    });
+  } catch (error) {
+    res.status(500).json({
+      stdout: "",
+      stderr: error.message || "Server error",
+      exitCode: 1,
+      executionTimeMs: 0,
+      memoryMb: 0,
+      engineUsed: "piston",
+    });
+  }
+});
+
+app.post("/api/ai-assist", (req, res) => {
+  res.json({
+    title: "AI Assist Not Configured",
+    summary: "Code execution is working, but AI assist is not connected yet.",
+    suggestions: [],
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on port ${PORT}`);
+});

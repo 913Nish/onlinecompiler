@@ -1,0 +1,6 @@
+{
+  "name": "Dark Web Compiler",
+  "description": "A high-performance online compiler and code execution IDE, featuring multi-language execution, custom STDIN/STDOUT terminal, interactive code editor, and AI code assistance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
